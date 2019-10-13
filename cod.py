@@ -9,7 +9,7 @@ import cv2
 from directkeys import ReleaseKey, PressKey, W,A,S,D
 
 class ProcessMain:
-
+    play=1
     def get_masks(self,frame):
         yellow_frame=frame.copy()
         hand_yellow_lower=np.array([14,73,61])
@@ -35,31 +35,63 @@ class ProcessMain:
 
     def region_of_interest(self,mask,vertices):
         mask_temp=np.zeros_like(mask)
-        cv2.fillPoly(mask_temp,np.array([vertices],dtype=np.int32),(0,0,255))
+        cv2.fillPoly(mask_temp,np.array([vertices],dtype=np.int32),(255,255,255))
         return cv2.bitwise_and(mask,mask_temp)
 
 
-    def left_hand_process(self,mask,frame):
-        pass
-
     def get_contour_details(self,mask,frame):
+
         all_cnt,_=cv2.findContours(mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
 
         for cnt in all_cnt:
-            if(cv2.contourArea(cnt)>1000):
-                M=cv2.moments(cnt)
-                cx = int(M['m10']/M['m00'])
-                cy = int(M['m01']/M['m00'])
-
+            if(cv2.contourArea(cnt)>500):
                 x,y,w,h = cv2.boundingRect(cnt)
                 cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
 
-        return all_cnt
+        return cv2.bitwise_and(frame,frame,mask),all_cnt
+
+    def get_color_contour_details(self,mask,region_mask,frame,color):
+
+        final_mask=cv2.bitwise_and(mask,mask,mask=region_mask)
+        if(color=="red"):
+            all_cnt,_=cv2.findContours(final_mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+            for cnt in all_cnt:
+                if(cv2.contourArea(cnt)>200):
+                    x,y,w,h = cv2.boundingRect(cnt)
+                    cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+            return cv2.bitwise_and(frame,frame,final_mask),all_cnt
+
+        elif(color=="yellow"):
+            all_cnt,_=cv2.findContours(final_mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+            for cnt in all_cnt:
+                if(cv2.contourArea(cnt)>5000):
+                    x,y,w,h = cv2.boundingRect(cnt)
+                    cv2.rectangle(frame,(x,y),(x+w,y+h),(0,0,255),2)
+            return cv2.bitwise_and(frame,frame,final_mask),all_cnt
+
+    def left_hand_process(self,contours,color,image):
+        if(color=="red"):
+            for cnt in contours:
+                if(cv2.contourArea(cnt)>500):
+                    if(self.play==1):
+                        print("PRESSKEY")
+
+        elif(color=="yellow"):
+            for cnt in contours:
+                if(cv2.contourArea(cnt)>5000):
+                    if(self.play==1):
+                        M=cv2.moments(cnt)
+                        cx = int(M['m10']/M['m00'])
+                        cy = int(M['m01']/M['m00'])
+                        cv2.circle(image, (cx,cy), 50, (255,0,0), thickness=-1)
+                        print(cx,cy)
+
+
+
 
     def main_process(self):
 
         webcam=cv2.VideoCapture(0)
-        play=0
         count=0
 
         while(True):
@@ -67,22 +99,37 @@ class ProcessMain:
             _,frame=webcam.read()
             frame=cv2.flip(frame,1)
 
-
-            masks=self.get_masks(frame)
-            mask=masks[0]+masks[1]
+            all_masks=self.get_masks(frame)
+            mask=all_masks[0]+all_masks[1]
             x=frame.shape[1]
             y=frame.shape[0]
             left_vertices=np.array([[0,0],[x/2,0],[x/2,y],[0,y]])
             right_vertices=np.array([[x/2,0],[x,0],[x,y],[x/2,y]])
 
-#            yellow_contours=self.get_contour_details(masks[0],frame)
-#            red_contours=self.get_contour_details(masks[1],frame)
+            left_roi_mask=self.region_of_interest(mask,left_vertices)
+            right_roi_mask=self.region_of_interest(mask,right_vertices)
+
+            left_hand_contours,left_hand_contour_details=self.get_contour_details(left_roi_mask,frame)
+            right_hand_contours,right_hand_contour_details=self.get_contour_details(right_roi_mask,frame)
+
+            left_red_contours,left_red_contours_details=self.get_color_contour_details(all_masks[1],left_roi_mask,frame.copy(),"red")
+            left_yellow_contours,left_yellow_contours_details=self.get_color_contour_details(all_masks[0],left_roi_mask,frame.copy(),"yellow")
+            right_red_contours,right_red_contours_details=self.get_color_contour_details(all_masks[1],right_roi_mask,frame.copy(),"red")
+            right_yellow_contours,right_yellow_contours_details=self.get_color_contour_details(all_masks[0],right_roi_mask,frame.copy(),"yellow")
+
+            self.left_hand_process(left_yellow_contours_details,"yellow",left_yellow_contours)
+            self.left_hand_process(left_red_contours_details,"red",left_red_contours)
 
 
             output=cv2.bitwise_and(frame,frame,mask=mask)
-            cv2.imshow("roi",self.region_of_interest(frame,left_vertices))
-            cv2.imshow("roi2",self.region_of_interest(frame,right_vertices))
-            cv2.imshow("mask",mask)
+            cv2.imshow("left roi",left_roi_mask)
+            cv2.imshow("right roi",right_roi_mask)
+            cv2.imshow("left red",left_red_contours)
+            cv2.imshow("left hand contor",left_hand_contours)
+            cv2.imshow("left yellow",left_yellow_contours)
+            cv2.imshow("right red",right_red_contours)
+            cv2.imshow("right yellow",right_yellow_contours)
+            cv2.imshow("mask",all_masks[1])
             cv2.imshow("og frame",frame)
             cv2.imshow("output",output)
 

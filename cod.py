@@ -8,13 +8,9 @@ import numpy as np
 import cv2
 from directkeys import ReleaseKey, PressKey, W,A,S,D
 
-
-
-
 class ProcessMain:
 
     def get_masks(self,frame):
-
         yellow_frame=frame.copy()
         hand_yellow_lower=np.array([14,73,61])
         hand_yellow_upper=np.array([32,255,255])
@@ -37,9 +33,28 @@ class ProcessMain:
         return mask_yellow,mask_red
 
 
+    def region_of_interest(self,mask,vertices):
+        mask_temp=np.zeros_like(mask)
+        cv2.fillPoly(mask_temp,np.array([vertices],dtype=np.int32),(0,0,255))
+        return cv2.bitwise_and(mask,mask_temp)
 
-    def get_contour_details(self,mask):
-        return cv2.findContours(mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+
+    def left_hand_process(self,mask,frame):
+        pass
+
+    def get_contour_details(self,mask,frame):
+        all_cnt,_=cv2.findContours(mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+
+        for cnt in all_cnt:
+            if(cv2.contourArea(cnt)>1000):
+                M=cv2.moments(cnt)
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+
+                x,y,w,h = cv2.boundingRect(cnt)
+                cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+
+        return all_cnt
 
     def main_process(self):
 
@@ -55,13 +70,18 @@ class ProcessMain:
 
             masks=self.get_masks(frame)
             mask=masks[0]+masks[1]
+            x=frame.shape[1]
+            y=frame.shape[0]
+            left_vertices=np.array([[0,0],[x/2,0],[x/2,y],[0,y]])
+            right_vertices=np.array([[x/2,0],[x,0],[x,y],[x/2,y]])
 
-            yellow_contours=self.get_contour_details(masks[0])
-            red_contours=self.get_contour_details(masks[1])
-
+#            yellow_contours=self.get_contour_details(masks[0],frame)
+#            red_contours=self.get_contour_details(masks[1],frame)
 
 
             output=cv2.bitwise_and(frame,frame,mask=mask)
+            cv2.imshow("roi",self.region_of_interest(frame,left_vertices))
+            cv2.imshow("roi2",self.region_of_interest(frame,right_vertices))
             cv2.imshow("mask",mask)
             cv2.imshow("og frame",frame)
             cv2.imshow("output",output)

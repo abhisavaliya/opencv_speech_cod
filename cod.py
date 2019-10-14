@@ -36,79 +36,83 @@ class ProcessMain:
         return mask_yellow,mask_red
 
 
+
+
     def region_of_interest(self,mask,vertices):
         mask_temp=np.zeros_like(mask)
         cv2.fillPoly(mask_temp,np.array([vertices],dtype=np.int32),(255,255,255))
         return cv2.bitwise_and(mask,mask_temp)
 
 
+
+
     def get_contour_details(self,mask,frame):
-
         all_cnt,_=cv2.findContours(mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-
-        for cnt in all_cnt:
-            if(cv2.contourArea(cnt)>500):
-                x,y,w,h = cv2.boundingRect(cnt)
-                cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
-
+        cnt=max(all_cnt,key=cv2.contourArea)
+        if(cv2.contourArea(cnt)>500):
+            x,y,w,h = cv2.boundingRect(cnt)
+            cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
         return cv2.bitwise_and(frame,frame,mask),all_cnt
 
-    def get_color_contour_details(self,mask,region_mask,frame,color):
 
+
+    def get_color_contour_details(self,mask,region_mask,frame,color):
         final_mask=cv2.bitwise_and(mask,mask,mask=region_mask)
+        all_cnt,_=cv2.findContours(final_mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+        cnt=max(all_cnt,key=cv2.contourArea)
         if(color=="red"):
-            all_cnt,_=cv2.findContours(final_mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-            for cnt in all_cnt:
-                if(cv2.contourArea(cnt)>200):
-                    x,y,w,h = cv2.boundingRect(cnt)
-                    cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+            if(cv2.contourArea(cnt)>200):
+                x,y,w,h = cv2.boundingRect(cnt)
+                cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
             return cv2.bitwise_and(frame,frame,final_mask),all_cnt
 
         elif(color=="yellow"):
-            all_cnt,_=cv2.findContours(final_mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-            for cnt in all_cnt:
-                if(cv2.contourArea(cnt)>5000):
-                    x,y,w,h = cv2.boundingRect(cnt)
-                    cv2.rectangle(frame,(x,y),(x+w,y+h),(0,0,255),2)
+            if(cv2.contourArea(cnt)>5000):
+                x,y,w,h = cv2.boundingRect(cnt)
+                cv2.rectangle(frame,(x,y),(x+w,y+h),(0,0,255),2)
             return cv2.bitwise_and(frame,frame,final_mask),all_cnt
 
+
+
     def hand_process(self,contours,image,color=None):
+        cnt=max(contours,key=cv2.contourArea)
+
         if(color=="left_red"):
-            for cnt in contours:
-                if(cv2.contourArea(cnt)>500):
-                    if(self.play==1):
-                        print("Shooting")
+            if(cv2.contourArea(cnt)>200):
+                if(self.play==1):
+                    print("Shooting")
 
         elif(color=="left_yellow"):
-            for idx,cnt in enumerate(contours):
-                if(cv2.contourArea(cnt)>5000):
-                    if(self.play==1):
-                        M=cv2.moments(cnt)
-                        cx = int(M['m10']/M['m00'])
-                        cy = int(M['m01']/M['m00'])
-                        cv2.circle(image, (cx,cy), 50, (255,0,0), thickness=-1)
-                        print(cx,cy)
-                        print(cx*6,int(cy*2.25))
+            if(cv2.contourArea(cnt)>5000):
+                if(self.play==1):
+                    M=cv2.moments(cnt)
+                    cx = int(M['m10']/M['m00'])
+                    cy = int(M['m01']/M['m00'])
+                    cv2.circle(image, (cx,cy), 50, (255,0,0), thickness=-1)
+                    print(cx,cy)
+                    print(cx*6,int(cy*2.25))
 
         elif(color=="right_red"):
-            for cnt in contours:
-                if(cv2.contourArea(cnt)>500):
-                    print("Releasing all Keys")
-                    self.z_index_area=cv2.contourArea(cnt)
+            if(cv2.contourArea(cnt)>500):
+                print("Releasing all Keys",cv2.contourArea(cnt)*3)
+                self.z_index_area=cv2.contourArea(cnt)*3
 
         elif(color=="right_yellow"):
-            for cnt in contours:
-                if(cv2.contourArea(cnt)>self.z_index_area*1.5):
+            if(cv2.contourArea(cnt)>4000):
+                if(cv2.contourArea(cnt)>self.z_index_area*1.25):
                     print("Move Forward")
                 elif(cv2.contourArea(cnt)<self.z_index_area*0.75):
                     print("Move Backward")
+                else:
+                    print("releasing yellow all")
+                print("yellow area:",cv2.contourArea(cnt))
+
+
 
 
     def main_process(self):
-
         webcam=cv2.VideoCapture(0)
         count=0
-
         while(True):
             count+=1
             _,frame=webcam.read()
@@ -132,9 +136,12 @@ class ProcessMain:
             right_red_contours,right_red_contours_details=self.get_color_contour_details(all_masks[1],right_roi_mask,frame.copy(),"red")
             right_yellow_contours,right_yellow_contours_details=self.get_color_contour_details(all_masks[0],right_roi_mask,frame.copy(),"yellow")
 
-            self.hand_process(left_yellow_contours_details,"left_yellow",left_yellow_contours)
-            self.hand_process(left_red_contours_details,"left_red",left_red_contours)
-
+            self.hand_process(left_yellow_contours_details,left_yellow_contours,"left_yellow")
+            self.hand_process(left_red_contours_details,left_red_contours,"left_red")
+            self.hand_process(right_red_contours_details,right_red_contours,"right_red")
+            print("lennn:",len(right_red_contours_details))
+            if(len(right_red_contours_details)==0):
+                self.hand_process(right_yellow_contours_details,right_yellow_contours,"right_yellow")
 
             output=cv2.bitwise_and(frame,frame,mask=mask)
             cv2.imshow("left roi",left_roi_mask)
@@ -157,12 +164,6 @@ class ProcessMain:
 def main():
     pm=ProcessMain()
     pm.main_process()
-#    img=np.zeros((400,400),dtype="uint8")
-#    cv2.circle(img,(200,200),10,(255,0,0),1)
-#    cv2.circle(img,(200,200),4,(255,255,0),1)
-#    cv2.imshow("img",img)
-#    cv2.waitKey(0)
-#    cv2.destroyAllWindows()
 
 if __name__=="__main__":
     main()

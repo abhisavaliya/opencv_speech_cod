@@ -10,6 +10,9 @@ from directkeys import ReleaseKey, PressKey, W,A,S,D
 
 class ProcessMain:
     play=1
+    z_index_area=500
+    sensitivity=2
+
     def get_masks(self,frame):
         yellow_frame=frame.copy()
         hand_yellow_lower=np.array([14,73,61])
@@ -69,15 +72,15 @@ class ProcessMain:
                     cv2.rectangle(frame,(x,y),(x+w,y+h),(0,0,255),2)
             return cv2.bitwise_and(frame,frame,final_mask),all_cnt
 
-    def left_hand_process(self,contours,color,image):
-        if(color=="red"):
+    def hand_process(self,contours,image,color=None):
+        if(color=="left_red"):
             for cnt in contours:
                 if(cv2.contourArea(cnt)>500):
                     if(self.play==1):
-                        print("PRESSKEY")
+                        print("Shooting")
 
-        elif(color=="yellow"):
-            for cnt in contours:
+        elif(color=="left_yellow"):
+            for idx,cnt in enumerate(contours):
                 if(cv2.contourArea(cnt)>5000):
                     if(self.play==1):
                         M=cv2.moments(cnt)
@@ -85,8 +88,20 @@ class ProcessMain:
                         cy = int(M['m01']/M['m00'])
                         cv2.circle(image, (cx,cy), 50, (255,0,0), thickness=-1)
                         print(cx,cy)
+                        print(cx*6,int(cy*2.25))
 
+        elif(color=="right_red"):
+            for cnt in contours:
+                if(cv2.contourArea(cnt)>500):
+                    print("Releasing all Keys")
+                    self.z_index_area=cv2.contourArea(cnt)
 
+        elif(color=="right_yellow"):
+            for cnt in contours:
+                if(cv2.contourArea(cnt)>self.z_index_area*1.5):
+                    print("Move Forward")
+                elif(cv2.contourArea(cnt)<self.z_index_area*0.75):
+                    print("Move Backward")
 
 
     def main_process(self):
@@ -117,8 +132,8 @@ class ProcessMain:
             right_red_contours,right_red_contours_details=self.get_color_contour_details(all_masks[1],right_roi_mask,frame.copy(),"red")
             right_yellow_contours,right_yellow_contours_details=self.get_color_contour_details(all_masks[0],right_roi_mask,frame.copy(),"yellow")
 
-            self.left_hand_process(left_yellow_contours_details,"yellow",left_yellow_contours)
-            self.left_hand_process(left_red_contours_details,"red",left_red_contours)
+            self.hand_process(left_yellow_contours_details,"left_yellow",left_yellow_contours)
+            self.hand_process(left_red_contours_details,"left_red",left_red_contours)
 
 
             output=cv2.bitwise_and(frame,frame,mask=mask)
@@ -142,8 +157,12 @@ class ProcessMain:
 def main():
     pm=ProcessMain()
     pm.main_process()
-
-
+#    img=np.zeros((400,400),dtype="uint8")
+#    cv2.circle(img,(200,200),10,(255,0,0),1)
+#    cv2.circle(img,(200,200),4,(255,255,0),1)
+#    cv2.imshow("img",img)
+#    cv2.waitKey(0)
+#    cv2.destroyAllWindows()
 
 if __name__=="__main__":
     main()

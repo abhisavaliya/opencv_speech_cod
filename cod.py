@@ -1,12 +1,204 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Oct 12 22:45:29 2019
+from __future__ import division
 
-@author: abhis
-"""
+import re
+import sys
+
+from google.cloud import speech
+from google.cloud.speech import enums
+from google.cloud.speech import types
+import pyaudio
+from six.moves import queue
 import numpy as np
 import cv2
-from directkeys import ReleaseKey, PressKey, W,A,S,D
+import threading,time
+
+# Audio recording parameters
+RATE = 16000
+CHUNK = int(RATE / 40)  # 100ms
+
+
+class MicrophoneStream(object):
+    """Opens a recording stream as a generator yielding the audio chunks."""
+    def __init__(self, rate, chunk):
+        self._rate = rate
+        self._chunk = chunk
+
+        # Create a thread-safe buffer of audio data
+        self._buff = queue.Queue()
+        self.closed = True
+
+    def __enter__(self):
+        self._audio_interface = pyaudio.PyAudio()
+        self._audio_stream = self._audio_interface.open(
+            format=pyaudio.paInt16,
+            # The API currently only supports 1-channel (mono) audio
+            # https://goo.gl/z757pE
+            channels=1, rate=self._rate,
+            input=True, frames_per_buffer=self._chunk,
+            # Run the audio stream asynchronously to fill the buffer object.
+            # This is necessary so that the input device's buffer doesn't
+            # overflow while the calling thread makes network requests, etc.
+            stream_callback=self._fill_buffer,
+        )
+
+        self.closed = False
+
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._audio_stream.stop_stream()
+        self._audio_stream.close()
+        self.closed = True
+        # Signal the generator to terminate so that the client's
+        # streaming_recognize method will not block the process termination.
+        self._buff.put(None)
+        self._audio_interface.terminate()
+
+    def _fill_buffer(self, in_data, frame_count, time_info, status_flags):
+        """Continuously collect data from the audio stream, into the buffer."""
+        self._buff.put(in_data)
+        return None, pyaudio.paContinue
+
+    def generator(self):
+        while not self.closed:
+            # Use a blocking get() to ensure there's at least one chunk of
+            # data, and stop iteration if the chunk is None, indicating the
+            # end of the audio stream.
+            chunk = self._buff.get()
+            if chunk is None:
+                return
+            data = [chunk]
+
+            # Now consume whatever other data's still buffered.
+            while True:
+                try:
+                    chunk = self._buff.get(block=False)
+                    if chunk is None:
+                        return
+                    data.append(chunk)
+                except queue.Empty:
+                    break
+
+            yield b''.join(data)
+
+
+def listen_print_loop(responses):
+
+
+    words_key=dict({
+                        "bump":"G",
+                        "bob":"G",
+                        "mom":"G",
+                        "pro":"G",
+                        "true":"G",
+                        "bomb":"G",
+                        "throw":"G",
+                        "turn":"G",
+                        "through":"G",
+                        "row":"G",
+                        "set":"C",
+                        "seat":"C",
+                        "downset":"C",
+                        "sit":"C",
+                        "down":"C",
+                        "aim":"right click",
+                        "in":"right click",
+                        "inside":"right click",
+                        "insight":"right click",
+                        "real":"R",
+                        "ral":"R",
+                        "or":"R",
+                        "reload":"R",
+                        "trailer":"R",
+                        "halo":"R",
+                        "allure":"R",
+                        "alone":"R",
+                        "lorde":"R",
+                        "lordure":"R",
+                        "change":"2",
+                        "swap":"2",
+                        "swept":"2"
+                    })
+
+    num_chars_printed = 0
+    for response in responses:
+        if not response.results:
+            continue
+
+        result = response.results[0]
+        if not result.alternatives:
+            continue
+
+        transcript = result.alternatives[0].transcript
+        overwrite_chars = ' ' * (num_chars_printed - len(transcript))
+
+
+        transcript_list=set(transcript.lower().split(" "))
+        print(transcript_list)
+        for i in transcript_list:
+            if (i in words_key):
+                print(words_key[i])
+                time.sleep(1)
+
+        if not result.is_final:
+
+#            transcript_list=set(transcript.split(" "))
+#            print(transcript_list)
+#            for i in transcript_list:
+#                if (i in words_key):
+#                    print(words_key[i])
+
+#            sys.stdout.write(transcript + overwrite_chars + '\r')
+            sys.stdout.flush()
+#            print(type(transcript))
+            num_chars_printed = len(transcript)
+
+        else:
+
+#            print(type(transcript))
+#            print(transcript + overwrite_chars)
+
+            if re.search(r'\b(exit|quit)\b', transcript, re.I):
+                print('Exiting..')
+                break
+
+            num_chars_printed = 0
+
+
+
+
+
+def main2():
+
+    language_code = 'en-US'  # a BCP-47 language tag
+
+    client = speech.SpeechClient()
+    config = types.RecognitionConfig(
+        encoding=enums.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=RATE,
+        language_code=language_code,)
+    streaming_config = types.StreamingRecognitionConfig(
+        config=config,
+        interim_results=False)
+
+    with MicrophoneStream(RATE, CHUNK) as stream:
+        audio_generator = stream.generator()
+        requests = (types.StreamingRecognizeRequest(audio_content=content)
+                    for content in audio_generator)
+
+        responses = client.streaming_recognize(streaming_config, requests)
+
+        # Now, put the transcription responses to use.
+
+        print("here")
+
+        listen_print_loop(responses)
+        time.sleep(0.01)
+        print("here2")
+
+
+
+
 
 class ProcessMain:
     play=1
@@ -48,10 +240,12 @@ class ProcessMain:
 
     def get_contour_details(self,mask,frame):
         all_cnt,_=cv2.findContours(mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-        cnt=max(all_cnt,key=cv2.contourArea)
-        if(cv2.contourArea(cnt)>500):
-            x,y,w,h = cv2.boundingRect(cnt)
-            cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+        if(len(all_cnt)>0):
+
+            cnt=max(all_cnt,key=cv2.contourArea)
+            if(cv2.contourArea(cnt)>500):
+                x,y,w,h = cv2.boundingRect(cnt)
+                cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
         return cv2.bitwise_and(frame,frame,mask),all_cnt
 
 
@@ -59,53 +253,60 @@ class ProcessMain:
     def get_color_contour_details(self,mask,region_mask,frame,color):
         final_mask=cv2.bitwise_and(mask,mask,mask=region_mask)
         all_cnt,_=cv2.findContours(final_mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-        cnt=max(all_cnt,key=cv2.contourArea)
-        if(color=="red"):
-            if(cv2.contourArea(cnt)>200):
-                x,y,w,h = cv2.boundingRect(cnt)
-                cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
-            return cv2.bitwise_and(frame,frame,final_mask),all_cnt
 
-        elif(color=="yellow"):
-            if(cv2.contourArea(cnt)>5000):
-                x,y,w,h = cv2.boundingRect(cnt)
-                cv2.rectangle(frame,(x,y),(x+w,y+h),(0,0,255),2)
-            return cv2.bitwise_and(frame,frame,final_mask),all_cnt
+        if(len(all_cnt)>0):
+
+            cnt=max(all_cnt,key=cv2.contourArea)
+            if(color=="red"):
+                if(cv2.contourArea(cnt)>200):
+                    x,y,w,h = cv2.boundingRect(cnt)
+                    cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+                return cv2.bitwise_and(frame,frame,final_mask),all_cnt
+
+            elif(color=="yellow"):
+                if(cv2.contourArea(cnt)>5000):
+                    x,y,w,h = cv2.boundingRect(cnt)
+                    cv2.rectangle(frame,(x,y),(x+w,y+h),(0,0,255),2)
+                return cv2.bitwise_and(frame,frame,final_mask),all_cnt
+        return cv2.bitwise_and(frame,frame,final_mask),all_cnt
 
 
 
     def hand_process(self,contours,image,color=None):
-        cnt=max(contours,key=cv2.contourArea)
 
-        if(color=="left_red"):
-            if(cv2.contourArea(cnt)>200):
-                if(self.play==1):
-                    print("Shooting")
+        if(len(contours)>0):
 
-        elif(color=="left_yellow"):
-            if(cv2.contourArea(cnt)>5000):
-                if(self.play==1):
-                    M=cv2.moments(cnt)
-                    cx = int(M['m10']/M['m00'])
-                    cy = int(M['m01']/M['m00'])
-                    cv2.circle(image, (cx,cy), 50, (255,0,0), thickness=-1)
-                    print(cx,cy)
-                    print(cx*6,int(cy*2.25))
+            cnt=max(contours,key=cv2.contourArea)
 
-        elif(color=="right_red"):
-            if(cv2.contourArea(cnt)>500):
-                print("Releasing all Keys",cv2.contourArea(cnt)*3)
-                self.z_index_area=cv2.contourArea(cnt)*3
+            if(color=="left_red"):
+                if(cv2.contourArea(cnt)>200):
+                    if(self.play==1):
+                        print("Shooting")
 
-        elif(color=="right_yellow"):
-            if(cv2.contourArea(cnt)>4000):
-                if(cv2.contourArea(cnt)>self.z_index_area*1.25):
-                    print("Move Forward")
-                elif(cv2.contourArea(cnt)<self.z_index_area*0.75):
-                    print("Move Backward")
-                else:
-                    print("releasing yellow all")
-                print("yellow area:",cv2.contourArea(cnt))
+            elif(color=="left_yellow"):
+                if(cv2.contourArea(cnt)>5000):
+                    if(self.play==1):
+                        M=cv2.moments(cnt)
+                        cx = int(M['m10']/M['m00'])
+                        cy = int(M['m01']/M['m00'])
+                        cv2.circle(image, (cx,cy), 50, (255,0,0), thickness=-1)
+                        print(cx,cy)
+                        print(cx*6,int(cy*2.25))
+
+            elif(color=="right_red"):
+                if(cv2.contourArea(cnt)>500):
+                    print("Releasing all Keys",cv2.contourArea(cnt)*3)
+                    self.z_index_area=cv2.contourArea(cnt)*3
+
+            elif(color=="right_yellow"):
+                if(cv2.contourArea(cnt)>4000):
+                    if(cv2.contourArea(cnt)>self.z_index_area*1.25):
+                        print("Move Forward")
+                    elif(cv2.contourArea(cnt)<self.z_index_area*0.75):
+                        print("Move Backward")
+                    else:
+                        print("releasing yellow all")
+                    print("yellow area:",cv2.contourArea(cnt))
 
 
 
@@ -127,22 +328,22 @@ class ProcessMain:
 
             left_roi_mask=self.region_of_interest(mask,left_vertices)
             right_roi_mask=self.region_of_interest(mask,right_vertices)
-
+            time.sleep(0.001)
             left_hand_contours,left_hand_contour_details=self.get_contour_details(left_roi_mask,frame)
             right_hand_contours,right_hand_contour_details=self.get_contour_details(right_roi_mask,frame)
-
+            time.sleep(0.001)
             left_red_contours,left_red_contours_details=self.get_color_contour_details(all_masks[1],left_roi_mask,frame.copy(),"red")
             left_yellow_contours,left_yellow_contours_details=self.get_color_contour_details(all_masks[0],left_roi_mask,frame.copy(),"yellow")
             right_red_contours,right_red_contours_details=self.get_color_contour_details(all_masks[1],right_roi_mask,frame.copy(),"red")
             right_yellow_contours,right_yellow_contours_details=self.get_color_contour_details(all_masks[0],right_roi_mask,frame.copy(),"yellow")
-
+            time.sleep(0.001)
             self.hand_process(left_yellow_contours_details,left_yellow_contours,"left_yellow")
             self.hand_process(left_red_contours_details,left_red_contours,"left_red")
             self.hand_process(right_red_contours_details,right_red_contours,"right_red")
             print("lennn:",len(right_red_contours_details))
             if(len(right_red_contours_details)==0):
                 self.hand_process(right_yellow_contours_details,right_yellow_contours,"right_yellow")
-
+            time.sleep(0.001)
             output=cv2.bitwise_and(frame,frame,mask=mask)
             cv2.imshow("left roi",left_roi_mask)
             cv2.imshow("right roi",right_roi_mask)
@@ -161,9 +362,18 @@ class ProcessMain:
                 break
 
 
-def main():
+
+
+def main3():
+
     pm=ProcessMain()
     pm.main_process()
+    time.sleep(0.01)
+
+
+def main():
+    th1 = threading.Thread(target = main3).start()
+    th2 = threading.Thread(target = main2).start()
 
 if __name__=="__main__":
     main()

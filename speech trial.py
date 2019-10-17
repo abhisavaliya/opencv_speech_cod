@@ -98,38 +98,40 @@ def listen_print_loop(responses):
 
 
     words_key=dict({
-                        "bump":"G",
-                        "bob":"G",
-                        "mom":"G",
+#                        "bump":"G",
+#                        "bob":"G",
+#                        "mom":"G",
                         "pro":"G",
-                        "true":"G",
-                        "bomb":"G",
+#                        "true":"G",
+#                        "bomb":"G",
                         "throw":"G",
-                        "turn":"G",
-                        "through":"G",
-                        "row":"G",
-                        "set":"C",
-                        "seat":"C",
-                        "downset":"C",
-                        "sit":"C",
+#                        "turn":"G",
+#                        "through":"G",
+#                        "row":"G",
+#                        "set":"C",
+                        "cross":"C",
+#                        "seat":"C",
+#                        "downset":"C",
+#                        "sit":"C",
                         "down":"C",
-                        "aim":"right click",
-                        "in":"right click",
+#                        "aim":"right click",
+#                        "in":"right click",
                         "inside":"right click",
-                        "insight":"right click",
-                        "real":"R",
-                        "ral":"R",
-                        "or":"R",
-                        "reload":"R",
-                        "trailer":"R",
-                        "halo":"R",
-                        "allure":"R",
-                        "alone":"R",
-                        "lorde":"R",
-                        "lordure":"R",
+#                        "insight":"right click",
+#                        "real":"R",
+#                        "ral":"R",
+#                        "or":"R",
+                        "lord":"R",
+#                        "trailer":"R",
+#                        "halo":"R",
+#                        "allure":"R",
+#                        "alone":"R",
+#                        "lorde":"R",
+#                        "lordure":"R",
                         "change":"2",
-                        "swap":"2",
-                        "swept":"2"
+#                        "swap":"2",
+#                        "swept":"2"
+                        "rifle":"3"
                     })
 
     num_chars_printed = 0
@@ -191,7 +193,7 @@ def main2():
         language_code=language_code,)
     streaming_config = types.StreamingRecognitionConfig(
         config=config,
-        interim_results=False)
+        interim_results=True)
 
     with MicrophoneStream(RATE, CHUNK) as stream:
         audio_generator = stream.generator()

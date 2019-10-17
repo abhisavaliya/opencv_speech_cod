@@ -11,6 +11,7 @@ from six.moves import queue
 import numpy as np
 import cv2
 import threading,time
+import win32api, win32con
 
 # Audio recording parameters
 RATE = 16000
@@ -83,43 +84,43 @@ class MicrophoneStream(object):
 
 
 def listen_print_loop(responses):
-
-
     words_key=dict({
-                        "bump":"G",
-                        "bob":"G",
-                        "mom":"G",
+#                        "bump":"G",
+#                        "bob":"G",
+#                        "mom":"G",
                         "pro":"G",
-                        "true":"G",
-                        "bomb":"G",
+#                        "true":"G",
+#                        "bomb":"G",
                         "throw":"G",
-                        "turn":"G",
-                        "through":"G",
-                        "row":"G",
-                        "set":"C",
-                        "seat":"C",
-                        "downset":"C",
-                        "sit":"C",
+#                        "turn":"G",
+#                        "through":"G",
+#                        "row":"G",
+#                        "set":"C",
+                        "cross":"C",
+#                        "seat":"C",
+#                        "downset":"C",
+#                        "sit":"C",
                         "down":"C",
-                        "aim":"right click",
-                        "in":"right click",
+#                        "aim":"right click",
+#                        "in":"right click",
                         "inside":"right click",
-                        "insight":"right click",
-                        "real":"R",
-                        "ral":"R",
-                        "or":"R",
-                        "reload":"R",
-                        "trailer":"R",
-                        "halo":"R",
-                        "allure":"R",
-                        "alone":"R",
-                        "lorde":"R",
-                        "lordure":"R",
+#                        "insight":"right click",
+#                        "real":"R",
+#                        "ral":"R",
+#                        "or":"R",
+                        "lord":"R",
+#                        "trailer":"R",
+#                        "halo":"R",
+#                        "allure":"R",
+#                        "alone":"R",
+#                        "lorde":"R",
+#                        "lordure":"R",
                         "change":"2",
-                        "swap":"2",
-                        "swept":"2"
-                    })
-
+#                        "swap":"2",
+#                        "swept":"2"
+                        "rifle":"3"
+                        })
+    
     num_chars_printed = 0
     for response in responses:
         if not response.results:
@@ -224,8 +225,21 @@ class ProcessMain:
         frame_red_blurred=cv2.blur(red_frame_brightness,(red_blur_filter,red_blur_filter))
         red_hsv_blurred=cv2.cvtColor(frame_red_blurred,cv2.COLOR_BGR2HSV)
         mask_red=cv2.inRange(red_hsv_blurred,hand_red_lower,hand_red_upper)
+        
+        
+        cap_frame=frame.copy()
+        hand_cap_lower=np.array([30,33,38])
+        hand_cap_upper=np.array([56,105,255])
+        cap_blur_filter=20
+        cap_brightness_filter=44
+        cap_brightness_kernel=np.ones(cap_frame.shape,dtype="uint8")*cap_brightness_filter
+        cap_frame_brightness=cv2.add(cap_frame,cap_brightness_kernel)
+        frame_cap_blurred=cv2.blur(cap_frame_brightness,(cap_blur_filter,cap_blur_filter))
+        cap_hsv_blurred=cv2.cvtColor(frame_cap_blurred,cv2.COLOR_BGR2HSV)
+        mask_cap=cv2.inRange(cap_hsv_blurred,hand_cap_lower,hand_cap_upper)
+        
 
-        return mask_yellow,mask_red
+        return mask_yellow,mask_red,mask_cap
 
 
 
@@ -268,8 +282,19 @@ class ProcessMain:
                     x,y,w,h = cv2.boundingRect(cnt)
                     cv2.rectangle(frame,(x,y),(x+w,y+h),(0,0,255),2)
                 return cv2.bitwise_and(frame,frame,final_mask),all_cnt
+            
+            elif(color=="cap"):
+                if(cv2.contourArea(cnt)>5000):
+                    x,y,w,h = cv2.boundingRect(cnt)
+                    cv2.rectangle(frame,(x,y),(x+w,y+h),(0,0,255),2)
+                return cv2.bitwise_and(frame,frame,final_mask),all_cnt
+            
         return cv2.bitwise_and(frame,frame,final_mask),all_cnt
-
+    
+    
+    def click(x,y):
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y,0,0)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y,0,0)
 
 
     def hand_process(self,contours,image,color=None):
@@ -283,15 +308,17 @@ class ProcessMain:
                     if(self.play==1):
                         print("Shooting")
 
-            elif(color=="left_yellow"):
-                if(cv2.contourArea(cnt)>5000):
+            elif(color=="left_cap"):
+                if(cv2.contourArea(cnt)>200):
                     if(self.play==1):
                         M=cv2.moments(cnt)
                         cx = int(M['m10']/M['m00'])
                         cy = int(M['m01']/M['m00'])
                         cv2.circle(image, (cx,cy), 50, (255,0,0), thickness=-1)
-                        print(cx,cy)
-                        print(cx*6,int(cy*2.25))
+                        win32api.SetCursorPos((cx*6,int(cy*2.5)))
+                        print(cx,cy,cx*6,cy*2.5)
+#                        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE | win32con.MOUSEEVENTF_ABSOLUTE, int(cx/320*65535.0), int(cy/320*65535.0))
+                        
 
             elif(color=="right_red"):
                 if(cv2.contourArea(cnt)>500):
@@ -308,7 +335,7 @@ class ProcessMain:
                         print("releasing yellow all")
                     print("yellow area:",cv2.contourArea(cnt))
 
-
+    
 
 
     def main_process(self):
@@ -320,7 +347,7 @@ class ProcessMain:
             frame=cv2.flip(frame,1)
 
             all_masks=self.get_masks(frame)
-            mask=all_masks[0]+all_masks[1]
+            mask=all_masks[0]+all_masks[1]+all_masks[2]
             x=frame.shape[1]
             y=frame.shape[0]
             left_vertices=np.array([[0,0],[x/2,0],[x/2,y],[0,y]])
@@ -329,18 +356,18 @@ class ProcessMain:
             left_roi_mask=self.region_of_interest(mask,left_vertices)
             right_roi_mask=self.region_of_interest(mask,right_vertices)
             time.sleep(0.001)
-            left_hand_contours,left_hand_contour_details=self.get_contour_details(left_roi_mask,frame)
-            right_hand_contours,right_hand_contour_details=self.get_contour_details(right_roi_mask,frame)
-            time.sleep(0.001)
+            
             left_red_contours,left_red_contours_details=self.get_color_contour_details(all_masks[1],left_roi_mask,frame.copy(),"red")
             left_yellow_contours,left_yellow_contours_details=self.get_color_contour_details(all_masks[0],left_roi_mask,frame.copy(),"yellow")
             right_red_contours,right_red_contours_details=self.get_color_contour_details(all_masks[1],right_roi_mask,frame.copy(),"red")
             right_yellow_contours,right_yellow_contours_details=self.get_color_contour_details(all_masks[0],right_roi_mask,frame.copy(),"yellow")
+            
+            cap_contours,cap_contours_details=self.get_color_contour_details(all_masks[2],left_roi_mask,frame.copy(),"cap")
             time.sleep(0.001)
-            self.hand_process(left_yellow_contours_details,left_yellow_contours,"left_yellow")
+            
             self.hand_process(left_red_contours_details,left_red_contours,"left_red")
             self.hand_process(right_red_contours_details,right_red_contours,"right_red")
-            print("lennn:",len(right_red_contours_details))
+            self.hand_process(cap_contours_details,cap_contours,"left_cap")
             if(len(right_red_contours_details)==0):
                 self.hand_process(right_yellow_contours_details,right_yellow_contours,"right_yellow")
             time.sleep(0.001)
@@ -348,11 +375,10 @@ class ProcessMain:
             cv2.imshow("left roi",left_roi_mask)
             cv2.imshow("right roi",right_roi_mask)
             cv2.imshow("left red",left_red_contours)
-            cv2.imshow("left hand contor",left_hand_contours)
             cv2.imshow("left yellow",left_yellow_contours)
             cv2.imshow("right red",right_red_contours)
-            cv2.imshow("right yellow",right_yellow_contours)
-            cv2.imshow("mask",all_masks[1])
+            cv2.imshow("left_cap",cap_contours)
+            cv2.imshow("mask cap",all_masks[2])
             cv2.imshow("og frame",frame)
             cv2.imshow("output",output)
 
@@ -373,7 +399,7 @@ def main3():
 
 def main():
     th1 = threading.Thread(target = main3).start()
-    th2 = threading.Thread(target = main2).start()
+#    th2 = threading.Thread(target = main2).start()
 
 if __name__=="__main__":
     main()

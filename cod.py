@@ -12,6 +12,7 @@ import numpy as np
 import cv2
 import threading,time
 import win32api, win32con
+from directkeys import PressKey, ReleaseKey, W,A,S,D
 
 # Audio recording parameters
 RATE = 16000
@@ -208,37 +209,29 @@ class ProcessMain:
 
     def get_masks(self,frame):
         yellow_frame=frame.copy()
-        hand_yellow_lower=np.array([14,73,61])
-        hand_yellow_upper=np.array([32,255,255])
-        yellow_blur_filter=23
-        frame_yellow_blurred=cv2.blur(yellow_frame,(yellow_blur_filter,yellow_blur_filter))
-        yellow_hsv_blurred=cv2.cvtColor(frame_yellow_blurred,cv2.COLOR_BGR2HSV)
-        mask_yellow=cv2.inRange(yellow_hsv_blurred,hand_yellow_lower,hand_yellow_upper)
+        hand_yellow_lower=np.array([0,0,123])
+        hand_yellow_upper=np.array([27,198,255])
+        yellow_blur_filter=55
+        yellow_hsv=cv2.cvtColor(yellow_frame,cv2.COLOR_BGR2HSV)
+        frame_yellow_blurred=cv2.GaussianBlur(yellow_hsv,(yellow_blur_filter,yellow_blur_filter),0)
+        mask_yellow=cv2.inRange(frame_yellow_blurred,hand_yellow_lower,hand_yellow_upper)
 
         red_frame=frame.copy()
-        hand_red_lower=np.array([171,67,0])
-        hand_red_upper=np.array([179,255,255])
-        red_brightness_filter=64
-        red_blur_filter=16
-        red_brightness_kernel=np.ones(red_frame.shape,dtype="uint8")*red_brightness_filter
-        red_frame_brightness=cv2.add(red_frame,red_brightness_kernel)
-        frame_red_blurred=cv2.blur(red_frame_brightness,(red_blur_filter,red_blur_filter))
-        red_hsv_blurred=cv2.cvtColor(frame_red_blurred,cv2.COLOR_BGR2HSV)
-        mask_red=cv2.inRange(red_hsv_blurred,hand_red_lower,hand_red_upper)
-        
-        
+        hand_red_lower=np.array([104,147,89])
+        hand_red_upper=np.array([180,255,255])        
+        red_blur_filter=23
+        red_hsv=cv2.cvtColor(red_frame,cv2.COLOR_BGR2HSV)
+        frame_red_blurred=cv2.GaussianBlur(red_hsv,(red_blur_filter,red_blur_filter),0)
+        mask_red=cv2.inRange(frame_red_blurred,hand_red_lower,hand_red_upper)
+                
         cap_frame=frame.copy()
-        hand_cap_lower=np.array([30,33,38])
-        hand_cap_upper=np.array([56,105,255])
-        cap_blur_filter=20
-        cap_brightness_filter=44
-        cap_brightness_kernel=np.ones(cap_frame.shape,dtype="uint8")*cap_brightness_filter
-        cap_frame_brightness=cv2.add(cap_frame,cap_brightness_kernel)
-        frame_cap_blurred=cv2.blur(cap_frame_brightness,(cap_blur_filter,cap_blur_filter))
-        cap_hsv_blurred=cv2.cvtColor(frame_cap_blurred,cv2.COLOR_BGR2HSV)
-        mask_cap=cv2.inRange(cap_hsv_blurred,hand_cap_lower,hand_cap_upper)
+        hand_cap_lower=np.array([0,146,166])
+        hand_cap_upper=np.array([180,255,255])
+        cap_blur_filter=21
+        cap_hsv=cv2.cvtColor(cap_frame,cv2.COLOR_BGR2HSV)
+        frame_cap_blurred=cv2.GaussianBlur(cap_hsv,(cap_blur_filter,cap_blur_filter),0)       
+        mask_cap=cv2.inRange(frame_cap_blurred,hand_cap_lower,hand_cap_upper)
         
-
         return mask_yellow,mask_red,mask_cap
 
 
@@ -292,9 +285,11 @@ class ProcessMain:
         return cv2.bitwise_and(frame,frame,final_mask),all_cnt
     
     
-    def click(x,y):
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y,0,0)
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y,0,0)
+    def click(self,x,y):
+        win32api.SetCursorPos((x,y))
+        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE | win32con.MOUSEEVENTF_ABSOLUTE, int(x/1080*65535.0), int(y/1920*65535.0))
+#        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y,0,0)
+#        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y,0,0)
 
 
     def hand_process(self,contours,image,color=None):
@@ -306,7 +301,11 @@ class ProcessMain:
             if(color=="left_red"):
                 if(cv2.contourArea(cnt)>200):
                     if(self.play==1):
+                        M=cv2.moments(cnt)
+                        cx = int(M['m10']/M['m00'])
+                        cy = int(M['m01']/M['m00'])
                         print("Shooting")
+                        self.click(cx,cy)
 
             elif(color=="left_cap"):
                 if(cv2.contourArea(cnt)>200):
@@ -315,36 +314,42 @@ class ProcessMain:
                         cx = int(M['m10']/M['m00'])
                         cy = int(M['m01']/M['m00'])
                         cv2.circle(image, (cx,cy), 50, (255,0,0), thickness=-1)
-                        win32api.SetCursorPos((cx*6,int(cy*2.5)))
-                        print(cx,cy,cx*6,cy*2.5)
-#                        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE | win32con.MOUSEEVENTF_ABSOLUTE, int(cx/320*65535.0), int(cy/320*65535.0))
+#                        win32api.SetCursorPos((cx*6,int(cy*2.25)))
+                        self.click(cx*6,int(cy*2.25))
+#                        print(cx,cy,cx*6,cy*2.5)
                         
 
             elif(color=="right_red"):
-                if(cv2.contourArea(cnt)>500):
-                    print("Releasing all Keys",cv2.contourArea(cnt)*3)
+                if((cv2.contourArea(cnt)>3000) & (cv2.contourArea(cnt)<10000)):
+#                    print("Reset Area:",cv2.contourArea(cnt)*3)
+                    ReleaseKey(W)
+                    ReleaseKey(S)
                     self.z_index_area=cv2.contourArea(cnt)*3
 
             elif(color=="right_yellow"):
                 if(cv2.contourArea(cnt)>4000):
-                    if(cv2.contourArea(cnt)>self.z_index_area*1.25):
-                        print("Move Forward")
-                    elif(cv2.contourArea(cnt)<self.z_index_area*0.75):
-                        print("Move Backward")
-                    else:
-                        print("releasing yellow all")
+                    if(cv2.contourArea(cnt)>self.z_index_area*2):
+                        PressKey(W)
+#                        print("Move Forward")
+                    elif(cv2.contourArea(cnt)<self.z_index_area*2):
+#                        print("Move Backward")
+                        PressKey(S)
+
                     print("yellow area:",cv2.contourArea(cnt))
+                    print("zzzzz:",self.z_index_area)
 
     
 
 
     def main_process(self):
-        webcam=cv2.VideoCapture(0)
+        webcam=cv2.VideoCapture(0,cv2.CAP_DSHOW)
         count=0
         while(True):
             count+=1
             _,frame=webcam.read()
             frame=cv2.flip(frame,1)
+
+#            frame=cv2.imread(r"D:\IMPORTANT\PROJECT FILES\images\images actual\4.jpg")
 
             all_masks=self.get_masks(frame)
             mask=all_masks[0]+all_masks[1]+all_masks[2]

@@ -90,7 +90,7 @@ def listen_print_loop(responses):
 #                        "bob":"G",
 #                        "mom":"G",
                         "pro":G,
-#                        "true":"G",
+                        "true":G,
 #                        "bomb":"G",
                         "throw":G,
 #                        "turn":"G",
@@ -226,8 +226,8 @@ class ProcessMain:
         mask_red=cv2.inRange(frame_red_blurred,hand_red_lower,hand_red_upper)
                 
         cap_frame=frame.copy()
-        hand_cap_lower=np.array([0,146,166])
-        hand_cap_upper=np.array([180,255,255])
+        hand_cap_lower=np.array([63,130,117])
+        hand_cap_upper=np.array([109,255,255])
         cap_blur_filter=21
         cap_hsv=cv2.cvtColor(cap_frame,cv2.COLOR_BGR2HSV)
         frame_cap_blurred=cv2.GaussianBlur(cap_hsv,(cap_blur_filter,cap_blur_filter),0)       
@@ -294,7 +294,10 @@ class ProcessMain:
 
 
     def hand_process(self,contours,image,color=None):
-
+        
+#        if(len(contours)==0):
+#            if(color=="left_red"):
+                
         if(len(contours)>0):
 
             cnt=max(contours,key=cv2.contourArea)
@@ -308,7 +311,7 @@ class ProcessMain:
                         print("Shooting")
                         PressKey(LEFT_CLICK)
                         
-                        ReleaseKey(RIGHT_CLICK)
+                        ReleaseKey(LEFT_CLICK)
 #                        self.click(cx,cy)
 
             elif(color=="left_cap"):
@@ -334,19 +337,17 @@ class ProcessMain:
                 if(cv2.contourArea(cnt)>4000):
                     if(cv2.contourArea(cnt)>self.z_index_area*2):
                         PressKey(W)
-                        time.sleep(0.05)
-                        ReleaseKey(W)
+#                        time.sleep(0.01)
+#                        ReleaseKey(W)
                         ReleaseKey(S)
                         print("Move Forward")
                     elif(cv2.contourArea(cnt)<self.z_index_area*2):
                         print("Move Backward")
                         PressKey(S)
-                        time.sleep(0.05)
+#                        time.sleep(0.01)
                         ReleaseKey(W)
-                        ReleaseKey(S)
+#                        ReleaseKey(S)
 
-                    print("yellow area:",cv2.contourArea(cnt))
-                    print("zzzzz:",self.z_index_area)
 
     
 
@@ -378,14 +379,14 @@ class ProcessMain:
             right_yellow_contours,right_yellow_contours_details=self.get_color_contour_details(all_masks[0],right_roi_mask,frame.copy(),"yellow")
             
             cap_contours,cap_contours_details=self.get_color_contour_details(all_masks[2],left_roi_mask,frame.copy(),"cap")
-            time.sleep(0.001)
+#            time.sleep(0.001)
             
             self.hand_process(left_red_contours_details,left_red_contours,"left_red")
             self.hand_process(right_red_contours_details,right_red_contours,"right_red")
             self.hand_process(cap_contours_details,cap_contours,"left_cap")
             if(len(right_red_contours_details)==0):
                 self.hand_process(right_yellow_contours_details,right_yellow_contours,"right_yellow")
-            time.sleep(0.001)
+#            time.sleep(0.001)
             output=cv2.bitwise_and(frame,frame,mask=mask)
             cv2.imshow("left roi",left_roi_mask)
             cv2.imshow("right roi",right_roi_mask)
@@ -407,7 +408,7 @@ class ProcessMain:
 
 def main3():
 
-    pm=ProcessMain()ss
+    pm=ProcessMain()
     pm.main_process()
     time.sleep(0.01)
 

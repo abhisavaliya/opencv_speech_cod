@@ -12,7 +12,7 @@ import numpy as np
 import cv2
 import threading,time
 import win32api, win32con
-from directkeys import PressKey, ReleaseKey, W,A,S,D
+from directkeys import PressKey, ReleaseKey, W,A,S,D,R,LEFT_CLICK,RIGHT_CLICK,SWAP,SWAP_2,G,JUMP,C
 
 # Audio recording parameters
 RATE = 16000
@@ -89,37 +89,38 @@ def listen_print_loop(responses):
 #                        "bump":"G",
 #                        "bob":"G",
 #                        "mom":"G",
-                        "pro":"G",
+                        "pro":G,
 #                        "true":"G",
 #                        "bomb":"G",
-                        "throw":"G",
+                        "throw":G,
 #                        "turn":"G",
 #                        "through":"G",
 #                        "row":"G",
 #                        "set":"C",
-                        "cross":"C",
+                        "cross":C,
 #                        "seat":"C",
 #                        "downset":"C",
 #                        "sit":"C",
-                        "down":"C",
+                        "down":C,
 #                        "aim":"right click",
 #                        "in":"right click",
-                        "inside":"right click",
+                        "inside":RIGHT_CLICK,
 #                        "insight":"right click",
 #                        "real":"R",
 #                        "ral":"R",
 #                        "or":"R",
-                        "lord":"R",
+                        "lord":R,
 #                        "trailer":"R",
 #                        "halo":"R",
 #                        "allure":"R",
 #                        "alone":"R",
 #                        "lorde":"R",
 #                        "lordure":"R",
-                        "change":"2",
+                        "change":SWAP_2,
 #                        "swap":"2",
 #                        "swept":"2"
-                        "rifle":"3"
+                        "rifle":SWAP,
+                        "jump":JUMP
                         })
     
     num_chars_printed = 0
@@ -139,8 +140,8 @@ def listen_print_loop(responses):
         print(transcript_list)
         for i in transcript_list:
             if (i in words_key):
-                print(words_key[i])
-                time.sleep(1)
+                PressKey(words_key[i])
+                ReleaseKey(words_key[i])
 
         if not result.is_final:
 
@@ -286,10 +287,10 @@ class ProcessMain:
     
     
     def click(self,x,y):
-        win32api.SetCursorPos((x,y))
-        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE | win32con.MOUSEEVENTF_ABSOLUTE, int(x/1080*65535.0), int(y/1920*65535.0))
-#        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y,0,0)
-#        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y,0,0)
+#        win32api.SetCursorPos((x,y))
+#        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE | win32con.MOUSEEVENTF_ABSOLUTE, int(x/1080*65535.0), int(y/1920*65535.0))
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,x,y,0,0)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,x,y,0,0)
 
 
     def hand_process(self,contours,image,color=None):
@@ -305,7 +306,10 @@ class ProcessMain:
                         cx = int(M['m10']/M['m00'])
                         cy = int(M['m01']/M['m00'])
                         print("Shooting")
-                        self.click(cx,cy)
+                        PressKey(LEFT_CLICK)
+                        
+                        ReleaseKey(RIGHT_CLICK)
+#                        self.click(cx,cy)
 
             elif(color=="left_cap"):
                 if(cv2.contourArea(cnt)>200):
@@ -314,8 +318,8 @@ class ProcessMain:
                         cx = int(M['m10']/M['m00'])
                         cy = int(M['m01']/M['m00'])
                         cv2.circle(image, (cx,cy), 50, (255,0,0), thickness=-1)
-#                        win32api.SetCursorPos((cx*6,int(cy*2.25)))
-                        self.click(cx*6,int(cy*2.25))
+                        win32api.SetCursorPos((cx*6,cy*2))
+#                        self.click(cx*6,int(cy*2.25))
 #                        print(cx,cy,cx*6,cy*2.5)
                         
 
@@ -330,10 +334,16 @@ class ProcessMain:
                 if(cv2.contourArea(cnt)>4000):
                     if(cv2.contourArea(cnt)>self.z_index_area*2):
                         PressKey(W)
-#                        print("Move Forward")
+                        time.sleep(0.05)
+                        ReleaseKey(W)
+                        ReleaseKey(S)
+                        print("Move Forward")
                     elif(cv2.contourArea(cnt)<self.z_index_area*2):
-#                        print("Move Backward")
+                        print("Move Backward")
                         PressKey(S)
+                        time.sleep(0.05)
+                        ReleaseKey(W)
+                        ReleaseKey(S)
 
                     print("yellow area:",cv2.contourArea(cnt))
                     print("zzzzz:",self.z_index_area)
@@ -397,14 +407,14 @@ class ProcessMain:
 
 def main3():
 
-    pm=ProcessMain()
+    pm=ProcessMain()ss
     pm.main_process()
     time.sleep(0.01)
 
 
 def main():
     th1 = threading.Thread(target = main3).start()
-#    th2 = threading.Thread(target = main2).start()
+    th2 = threading.Thread(target = main2).start()
 
 if __name__=="__main__":
     main()
